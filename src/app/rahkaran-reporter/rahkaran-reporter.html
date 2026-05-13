@@ -1,0 +1,134 @@
+@let emp = employee();
+@let _overtime = overtime();
+@let _error = error();
+@let overTimeCls = { 'text-red-700': _overtime < 0, 'text-green-700': _overtime >= 0 };
+
+<div class="p-4" dir="rtl">
+  <div class="flex gap-2 mb-4 justify-center">
+    @if (emp) {
+      <div class="flex flex-row border p-2 border-gray-300 [&>div]:w-60 [&>div]:py-[.1rem] [&>div]:px-2">
+        <div class="flex justify-between">
+          <div>نام</div>
+          <div class="ltr">{{ emp.name }}</div>
+        </div>
+        <div class="flex justify-between border-r border-gray-300">
+          <div>کد پرسنلی</div>
+          <div class="ltr">{{ emp.code }}</div>
+        </div>
+        <div class="flex justify-between border-r border-gray-300">
+          <div>غیبت (روز)</div>
+          <div [ngClass]="{'text-red-700': emp.absence > 0}">{{ emp.absence || 0 }}</div>
+        </div>
+        <div class="flex justify-between border-r border-gray-300">
+          <div>اضافه کاری</div>
+          <div class="ltr" [ngClass]="overTimeCls">{{ overtime() | toHour: true }}</div>
+        </div>
+      </div>
+    }
+    <button (click)="file.click()"
+            class="bg-teal-500 cursor-pointer px-3.5 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-teal-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-500">
+      انتخاب فایل
+    </button>
+    <input #file type="file" (change)="onFileInput($event)" accept=".xml" class="sr-only" />
+  </div>
+  @if (_error) {
+    <div class="bg-red-100 border-t-4 border-red-500 rounded-b text-red-900 px-4 py-3 shadow-md w-150 mx-auto mb-5" role="alert">
+      <div class="flex w-full gap-4">
+        <div class="py-1">
+          <svg class="fill-current h-6 w-6 text-red-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+            <path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07zm12.73-1.41A8 8 0 1 0 4.34 4.34a8 8 0 0 0 11.32 11.32zM9 11V9h2v6H9v-4zm0-6h2v2H9V5z" />
+          </svg>
+        </div>
+        <div class="flex flex-col grow">
+          <p class="font-bold mb-2">خطا در تحلیل گزارش</p>
+          <p class="text-sm mb-3">
+            متاسفانه خطایی در تحلیل فایل گزارش رخ داد. لطفا برای بررسی مشکل فایل خود را به توسعه دهنده ارسال کنید. با تشکر
+          </p>
+        </div>
+      </div>
+      <div class="overflowx-auto w-full ltr bg-red-200 p-3">
+        <pre class="overflow-x-auto">{{ _error }}</pre>
+      </div>
+    </div>
+  }
+  @if (emp) {
+    <table class="border-collapse w-full border border-gray-300">
+      <thead>
+      <tr class="bg-gray-100 border border-gray-300 [&>th]:p-2 [&>th]:border [&>th]:border-gray-300">
+        <th>تاریخ</th>
+        <th>روز</th>
+        <th>نوع</th>
+        <th>ورود</th>
+        <th>خروج</th>
+        <th colspan="2">مدت حضور</th>
+        <th>اضافه کاری</th>
+      </tr>
+      </thead>
+      <tbody>
+        @for (day of emp.days; track $index; let odd = $odd) {
+          @let span = day.details.length;
+          <tr class="{{ odd ? 'bg-gray-100' : '' }} text-center border border-gray-300 [&>td]:p-2 [&>td]:border [&>td]:border-gray-300"
+              [ngClass]="{'bg-red-50!' : day.special,'bg-red-100!' : day.absence}">
+            <td [rowSpan]="span">{{ day.date }}</td>
+            <td [rowSpan]="span">{{ day.name }}</td>
+            <td>{{ day.special ?? day.details[0].statusLabel }}</td>
+            <td>{{ day.details[0].enterStr }}</td>
+            <td><span [ngClass]="{'animate-pulse' : !day.details[0].out}">{{ day.details[0].exitStr }}</span></td>
+            @if (span > 1) {
+              <td><span [ngClass]="{'animate-pulse' : !day.details[0].out}">{{ day.details[0].total | toHour: day.details[0].reduced }}</span></td>
+            }
+            <td [rowSpan]="span" [attr.colspan]="span > 1 ? 1 : 2">
+              @if (!day.absence) {
+                <span [ngClass]="{'animate-pulse' : !day.details[0].out}">
+                {{ day.total | toHour }}
+                </span>
+              }
+            </td>
+            <td [rowSpan]="span" class="ltr" [ngClass]="{'text-red-700' : day.overtime < 0, 'text-green-700' : day.overtime >= 0}">
+              @if (!day.absence) {
+                <span [ngClass]="{'animate-pulse' : !day.details[0].out}">
+                {{ day.overtime | toHour: true }}
+                </span>
+              }
+            </td>
+          </tr>
+
+          @let details = day.details.slice(1);
+
+          @for (detail of details; track $index) {
+            <tr
+              class="{{ odd ? 'bg-gray-100' : '' }} text-center border border-gray-300 [&>td]:p-2 [&>td]:border [&>td]:border-gray-300"
+            >
+              <td>{{ detail.statusLabel }}</td>
+              <td>{{ detail.enterStr }}</td>
+              <td><span [ngClass]="{'animate-pulse' : !detail.out}">{{ detail.exitStr }}</span></td>
+              <td><span [ngClass]="{'animate-pulse' : !detail.out}">{{ detail.total | toHour }}</span></td>
+            </tr>
+          }
+        }
+
+      <tr class="text-center [&>td]:p-2 [&>td]:border [&>td]:border-gray-300">
+        <td colspan="7">مجموع</td>
+        <td class="ltr" [ngClass]="overTimeCls">{{ _overtime | toHour: true }}</td>
+      </tr>
+      </tbody>
+    </table>
+  } @else {
+    <div class="bg-teal-100 border-t-4 border-teal-500 rounded-b text-teal-900 px-4 py-3 shadow-md w-150 mx-auto" role="alert">
+      <div class="flex">
+        <div class="py-1">
+          <svg class="fill-current h-6 w-6 text-teal-500 ml-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+            <path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07zm12.73-1.41A8 8 0 1 0 4.34 4.34a8 8 0 0 0 11.32 11.32zM9 11V9h2v6H9v-4zm0-6h2v2H9V5z" />
+          </svg>
+        </div>
+        <div>
+          <p class="font-bold mb-2">انتخاب فایل گزارش</p>
+          <p class="text-sm">
+            برای مشاهده گزارش، ابتدا وارد سامانه راهکاران شوید. سپس به بخش «وضعیت تردد» مراجعه کرده و با انتخاب بازه زمانی موردنظر، گزارش را دریافت کنید. در ادامه، خروجی <strong><u>XML</u></strong> را از سامانه دریافت کرده و از طریق دکمه بالا، فایل مربوطه را انتخاب نمایید.
+          </p>
+        </div>
+      </div>
+    </div>
+  }
+
+</div>
