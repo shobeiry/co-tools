@@ -122,7 +122,7 @@ export class RahkaranReporter {
 
     let details: Detail[] = [];
     for (const detail of day.getElementsByTagName('Details')) {
-      details.push(this.extractDetail(detail, special));
+      details.push(this.extractDetail(detail, start, special));
     }
 
     details = details.map((detail, i, allDetails) => {
@@ -173,7 +173,7 @@ export class RahkaranReporter {
     };
   }
 
-  private extractDetail(detail: Element, special?: string): Detail {
+  private extractDetail(detail: Element, start: number, special?: string): Detail {
     const statusLabel = detail.getAttribute('AttendanceStatus') ?? '';
     const enterStr = detail.getAttribute('Enter')?.trim() ?? '';
     let exitStr = detail.getAttribute('Exit')?.trim() ?? '';
@@ -186,7 +186,7 @@ export class RahkaranReporter {
     }
     const exit = this.timeToMinutes(exitStr);
 
-    const total = enter > 0 ? exit - enter : 0;
+    const total = enter > 0 ? exit - (enter < start ? start : enter) : 0;
 
     return {
       enterStr,
