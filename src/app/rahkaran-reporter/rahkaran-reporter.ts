@@ -1,4 +1,4 @@
-import { Component, computed, signal } from '@angular/core';
+import { Component, computed, signal, OnInit } from '@angular/core';
 import { ToHourPipe } from '../shared/pipes/to-hour-pipe';
 import { NgClass } from '@angular/common';
 import { Subscription, timer } from 'rxjs';
@@ -33,7 +33,7 @@ type Detail = {
 
 type Day = {
   date: string;
-  gregorianDate: string; // 👈 اضافه شدن تاریخ میلادی
+  gregorianDate: string;
   name: string;
   special?: string;
   startStr: string;
@@ -62,10 +62,12 @@ type Employee = {
   templateUrl: './rahkaran-reporter.html',
   styleUrl: './rahkaran-reporter.scss',
 })
-export class RahkaranReporter {
+export class RahkaranReporter implements OnInit {
   private readonly REDUCE_ENTER_ON_URGENCY = true;
 
   public isChartMode = false;
+
+  public isDarkMode = signal<boolean>(false);
 
   public error = signal<string | undefined>(undefined);
   public isJiraLoading = signal<boolean>(false);
@@ -86,6 +88,26 @@ export class RahkaranReporter {
   protected totalJiraWorkLog = computed(
     () => this.employee()?.days.reduce((sum, day) => (sum += day.jiraWorkLog ?? 0), 0) ?? 0,
   );
+
+  ngOnInit() {
+    if (
+      typeof window !== 'undefined' &&
+      window.matchMedia &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches
+    ) {
+      this.isDarkMode.set(true);
+      document.documentElement.classList.add('dark');
+    }
+  }
+
+  public toggleTheme() {
+    this.isDarkMode.update((val) => !val);
+    if (this.isDarkMode()) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }
 
   public openWorklogDetails(day: Day) {
     if (day.jiraLogs && day.jiraLogs.length > 0) {
