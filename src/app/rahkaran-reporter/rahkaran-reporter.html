@@ -64,11 +64,11 @@
         <span class="font-bold text-sm">اتصال به جیرا (Jira):</span>
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl">
-        <input #jiraUser type="text" placeholder="نام کاربری / ایمیل جیرا"
-               class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all"
+        <input #jiraUser type="text" placeholder="نام کاربری (برای توکن خالی بگذارید)"
+               class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all ltr ph-rtl"
                [disabled]="isJiraLoading()"/>
-        <input #jiraPass type="password" placeholder="رمز عبور یا API Token"
-               class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all"
+        <input #jiraPass type="password" placeholder="رمز عبور یا توکن"
+               class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all ltr ph-rtl"
                [disabled]="isJiraLoading()"/>
       </div>
     </div>

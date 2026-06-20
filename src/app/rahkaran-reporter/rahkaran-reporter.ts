@@ -164,8 +164,8 @@ export class RahkaranReporter implements OnInit {
   }
 
   public async onFetchJiraWorkLog(user: string, pass: string) {
-    if (!user || !pass) {
-      this.error.set('لطفاً نام کاربری و رمز عبور (یا توکن) جیرا را وارد کنید.');
+    if (!pass) {
+      this.error.set('لطفاً رمز عبور یا توکن (Token) جیرا را وارد کنید.');
       return;
     }
 
@@ -179,7 +179,6 @@ export class RahkaranReporter implements OnInit {
     this.isJiraLoading.set(true);
 
     try {
-      // استفاده مستقیم از تاریخ‌های میلادی که از قبل محاسبه شده‌اند
       const gStart = currentEmployee.days[0].gregorianDate;
       const gEnd = currentEmployee.days[currentEmployee.days.length - 1].gregorianDate;
 
@@ -187,15 +186,33 @@ export class RahkaranReporter implements OnInit {
         throw new Error('خطا در یافتن تاریخ میلادی');
       }
 
-      const authHeader = 'Basic ' + btoa(`${user}:${pass}`);
       const baseUrl = '/jira-api';
 
-      // مرحله اول: پیدا کردن تمام تسک‌هایی که کاربر در این بازه روی آن‌ها لاگ ثبت کرده است
+      const authHeader = user ? 'Basic ' + btoa(`${user}:${pass}`) : 'Bearer ' + pass;
+
+      const meResponse = await fetch(`${baseUrl}/rest/api/2/myself`, {
+        method: 'GET',
+        headers: {
+          Authorization: authHeader,
+          Accept: 'application/json',
+          'X-Atlassian-Token': 'no-check',
+        },
+      });
+
+      if (!meResponse.ok) {
+        throw new Error('نام کاربری، رمز عبور یا توکن وارد شده نامعتبر است.');
+      }
+
+      const meData = await meResponse.json();
+      const myName = meData.name;
+      const myKey = meData.key;
+      const myEmail = meData.emailAddress;
+
       const jql = `worklogAuthor = currentUser() AND worklogDate >= "${gStart}" AND worklogDate <= "${gEnd}"`;
 
       const searchParams = new URLSearchParams({
         jql: jql,
-        fields: 'summary', // در این مرحله فقط summary را می‌گیریم
+        fields: 'summary',
         maxResults: '1000',
       });
 
@@ -212,17 +229,13 @@ export class RahkaranReporter implements OnInit {
       );
 
       if (!searchResponse.ok) {
-        if (searchResponse.status === 401 || searchResponse.status === 403) {
-          throw new Error('نام کاربری یا رمز عبور اشتباه است، یا دسترسی ندارید.');
-        }
-        throw new Error(`خطای سرور جیرا (کد: ${searchResponse.status})`);
+        throw new Error(`خطای سرور جیرا هنگام جستجو (کد: ${searchResponse.status})`);
       }
 
       const searchData = await searchResponse.json();
       const dailyLogsMap = new Map<string, JiraLogDetail[]>();
 
       if (searchData.issues && searchData.issues.length > 0) {
-        // مرحله دوم: دریافت ورک‌لاگ‌های کامل برای هر تسک (برای دور زدن محدودیت ۲۰ ورک‌لاگ جیرا)
         const fetchWorklogsPromises = searchData.issues.map(async (issue: any) => {
           const issueKey = issue.key;
           const summary = issue.fields.summary || 'بدون عنوان';
@@ -243,16 +256,14 @@ export class RahkaranReporter implements OnInit {
 
             if (wlData && wlData.worklogs) {
               wlData.worklogs.forEach((wl: any) => {
-                // فیلتر کردن لاگ‌ها فقط برای کاربر فعلی
                 if (
-                  wl.author.name === user ||
-                  wl.author.emailAddress === user ||
-                  wl.author.key === user
+                  wl.author.name === myName ||
+                  wl.author.key === myKey ||
+                  wl.author.emailAddress === myEmail
                 ) {
                   const dateStr = wl.started.substring(0, 10);
                   const minutes = Math.floor(wl.timeSpentSeconds / 60);
 
-                  // ذخیره در مپ روزانه
                   if (!dailyLogsMap.has(dateStr)) {
                     dailyLogsMap.set(dateStr, []);
                   }
@@ -265,11 +276,9 @@ export class RahkaranReporter implements OnInit {
           }
         });
 
-        // صبر می‌کنیم تا تمام درخواست‌های جزئیات تسک‌ها به پایان برسد
         await Promise.all(fetchWorklogsPromises);
       }
 
-      // مرحله سوم: مپ کردن داده‌های کامل روی روزهای کارمند
       const updatedDays = currentEmployee.days.map((day) => {
         const logsForDay = dailyLogsMap.get(day.gregorianDate) || [];
         const totalMinutes = logsForDay.reduce((sum, log) => sum + log.minutes, 0);
