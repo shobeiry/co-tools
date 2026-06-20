@@ -14,6 +14,12 @@ enum Status {
   TASHVIQI = 'مرخصی تشویقی شرکت',
 }
 
+export type JiraLogDetail = {
+  issueKey: string;
+  summary: string;
+  minutes: number;
+};
+
 type Detail = {
   enterStr: string;
   enter: number;
@@ -27,6 +33,7 @@ type Detail = {
 
 type Day = {
   date: string;
+  gregorianDate: string; // 👈 اضافه شدن تاریخ میلادی
   name: string;
   special?: string;
   startStr: string;
@@ -36,6 +43,8 @@ type Day = {
   total: number;
   overtime: number;
   absence: boolean;
+  jiraWorkLog?: number;
+  jiraLogs?: JiraLogDetail[];
   details: Detail[];
 };
 
@@ -54,12 +63,43 @@ type Employee = {
   styleUrl: './rahkaran-reporter.scss',
 })
 export class RahkaranReporter {
+  private readonly REDUCE_ENTER_ON_URGENCY = true;
+
+  public isChartMode = false;
+
   public error = signal<string | undefined>(undefined);
+  public isJiraLoading = signal<boolean>(false);
+
+  public selectedDayLogs = signal<{
+    date: string;
+    gregorianDate: string;
+    logs: JiraLogDetail[];
+  } | null>(null);
+
   protected timer?: Subscription;
   protected employee = signal<Employee | undefined>(undefined);
+
   protected overtime = computed(
     () => this.employee()?.days.reduce((sum, day) => (sum += day.overtime), 0) ?? 0,
   );
+
+  protected totalJiraWorkLog = computed(
+    () => this.employee()?.days.reduce((sum, day) => (sum += day.jiraWorkLog ?? 0), 0) ?? 0,
+  );
+
+  public openWorklogDetails(day: Day) {
+    if (day.jiraLogs && day.jiraLogs.length > 0) {
+      this.selectedDayLogs.set({
+        date: day.date,
+        gregorianDate: day.gregorianDate,
+        logs: day.jiraLogs,
+      });
+    }
+  }
+
+  public closeWorklogDetails() {
+    this.selectedDayLogs.set(null);
+  }
 
   public async onFileInput(e: Event) {
     const input = e.target as HTMLInputElement;
@@ -70,8 +110,27 @@ export class RahkaranReporter {
     try {
       const xml = await this.readFileAsText(file);
       this.timer?.unsubscribe();
+
       this.timer = timer(0, 60000).subscribe(() => {
-        this.employee.set(this.extractDataFromXml(xml));
+        const newData = this.extractDataFromXml(xml);
+
+        if (newData) {
+          const currentEmp = this.employee();
+
+          if (currentEmp) {
+            newData.days.forEach((newDay) => {
+              const oldDay = currentEmp.days.find((d) => d.date === newDay.date);
+              if (oldDay && oldDay.jiraWorkLog !== undefined) {
+                newDay.jiraWorkLog = oldDay.jiraWorkLog;
+                newDay.jiraLogs = oldDay.jiraLogs;
+              }
+            });
+          }
+
+          this.employee.set(newData);
+        } else {
+          this.employee.set(undefined);
+        }
       });
     } catch (err: any) {
       console.error(err);
@@ -80,6 +139,184 @@ export class RahkaranReporter {
     }
 
     if (input) input.value = '';
+  }
+
+  public async onFetchJiraWorkLog(user: string, pass: string) {
+    if (!user || !pass) {
+      this.error.set('لطفاً نام کاربری و رمز عبور (یا توکن) جیرا را وارد کنید.');
+      return;
+    }
+
+    const currentEmployee = this.employee();
+    if (!currentEmployee || currentEmployee.days.length === 0) {
+      this.error.set('ابتدا فایل گزارش راهکاران را آپلود کنید تا تاریخ‌ها مشخص شوند.');
+      return;
+    }
+
+    this.error.set(undefined);
+    this.isJiraLoading.set(true);
+
+    try {
+      // استفاده مستقیم از تاریخ‌های میلادی که از قبل محاسبه شده‌اند
+      const gStart = currentEmployee.days[0].gregorianDate;
+      const gEnd = currentEmployee.days[currentEmployee.days.length - 1].gregorianDate;
+
+      if (!gStart || !gEnd) {
+        throw new Error('خطا در یافتن تاریخ میلادی');
+      }
+
+      const authHeader = 'Basic ' + btoa(`${user}:${pass}`);
+      const baseUrl = '/jira-api';
+
+      // مرحله اول: پیدا کردن تمام تسک‌هایی که کاربر در این بازه روی آن‌ها لاگ ثبت کرده است
+      const jql = `worklogAuthor = currentUser() AND worklogDate >= "${gStart}" AND worklogDate <= "${gEnd}"`;
+
+      const searchParams = new URLSearchParams({
+        jql: jql,
+        fields: 'summary', // در این مرحله فقط summary را می‌گیریم
+        maxResults: '1000',
+      });
+
+      const searchResponse = await fetch(
+        `${baseUrl}/rest/api/2/search?${searchParams.toString()}`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: authHeader,
+            Accept: 'application/json',
+            'X-Atlassian-Token': 'no-check',
+          },
+        },
+      );
+
+      if (!searchResponse.ok) {
+        if (searchResponse.status === 401 || searchResponse.status === 403) {
+          throw new Error('نام کاربری یا رمز عبور اشتباه است، یا دسترسی ندارید.');
+        }
+        throw new Error(`خطای سرور جیرا (کد: ${searchResponse.status})`);
+      }
+
+      const searchData = await searchResponse.json();
+      const dailyLogsMap = new Map<string, JiraLogDetail[]>();
+
+      if (searchData.issues && searchData.issues.length > 0) {
+        // مرحله دوم: دریافت ورک‌لاگ‌های کامل برای هر تسک (برای دور زدن محدودیت ۲۰ ورک‌لاگ جیرا)
+        const fetchWorklogsPromises = searchData.issues.map(async (issue: any) => {
+          const issueKey = issue.key;
+          const summary = issue.fields.summary || 'بدون عنوان';
+
+          try {
+            const wlResponse = await fetch(`${baseUrl}/rest/api/2/issue/${issueKey}/worklog`, {
+              method: 'GET',
+              headers: {
+                Authorization: authHeader,
+                Accept: 'application/json',
+                'X-Atlassian-Token': 'no-check',
+              },
+            });
+
+            if (!wlResponse.ok) return;
+
+            const wlData = await wlResponse.json();
+
+            if (wlData && wlData.worklogs) {
+              wlData.worklogs.forEach((wl: any) => {
+                // فیلتر کردن لاگ‌ها فقط برای کاربر فعلی
+                if (
+                  wl.author.name === user ||
+                  wl.author.emailAddress === user ||
+                  wl.author.key === user
+                ) {
+                  const dateStr = wl.started.substring(0, 10);
+                  const minutes = Math.floor(wl.timeSpentSeconds / 60);
+
+                  // ذخیره در مپ روزانه
+                  if (!dailyLogsMap.has(dateStr)) {
+                    dailyLogsMap.set(dateStr, []);
+                  }
+                  dailyLogsMap.get(dateStr)!.push({ issueKey, summary, minutes });
+                }
+              });
+            }
+          } catch (err) {
+            console.warn(`خطا در دریافت جزئیات لاگ برای تسک ${issueKey}`, err);
+          }
+        });
+
+        // صبر می‌کنیم تا تمام درخواست‌های جزئیات تسک‌ها به پایان برسد
+        await Promise.all(fetchWorklogsPromises);
+      }
+
+      // مرحله سوم: مپ کردن داده‌های کامل روی روزهای کارمند
+      const updatedDays = currentEmployee.days.map((day) => {
+        const logsForDay = dailyLogsMap.get(day.gregorianDate) || [];
+        const totalMinutes = logsForDay.reduce((sum, log) => sum + log.minutes, 0);
+
+        return {
+          ...day,
+          jiraWorkLog: totalMinutes,
+          jiraLogs: logsForDay,
+        };
+      });
+
+      this.employee.set({
+        ...currentEmployee,
+        days: updatedDays,
+      });
+    } catch (err: any) {
+      console.error(err);
+      this.error.set(
+        err?.message || 'خطای ناشناخته در ارتباط با جیرا. لطفاً کنسول مرورگر را بررسی کنید.',
+      );
+    } finally {
+      this.isJiraLoading.set(false);
+    }
+  }
+
+  private persianToGregorianString(persianDate: string): string {
+    const normalizeDigits = (str: string) =>
+      str
+        .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 1776))
+        .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 1632));
+
+    const parts = normalizeDigits(persianDate.trim())
+      .split(/[\/\-]/)
+      .map(Number);
+    if (parts.length !== 3) return '';
+
+    const [gy, gm, gd] = this.jalaliToGregorian(parts[0], parts[1], parts[2]);
+    return `${gy}-${String(gm).padStart(2, '0')}-${String(gd).padStart(2, '0')}`;
+  }
+
+  private jalaliToGregorian(jy: number, jm: number, jd: number): [number, number, number] {
+    const g_days_in_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    const j_days_in_month = [31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 29];
+
+    jy += 1595;
+    let days = -355668 + 365 * jy + Math.floor(jy / 33) * 8 + Math.floor(((jy % 33) + 3) / 4) + jd;
+    for (let i = 0; i < jm - 1; ++i) days += j_days_in_month[i];
+
+    let gy = 400 * Math.floor(days / 146097);
+    days %= 146097;
+    if (days > 36524) {
+      gy += 100 * Math.floor(--days / 36524);
+      days %= 36524;
+      if (days >= 365) days++;
+    }
+    gy += 4 * Math.floor(days / 1461);
+    days %= 1461;
+    if (days > 365) {
+      gy += Math.floor((days - 1) / 365);
+      days = (days - 1) % 365;
+    }
+
+    let gd = days + 1;
+    const leap = (gy % 4 === 0 && gy % 100 !== 0) || gy % 400 === 0 ? 1 : 0;
+    g_days_in_month[1] += leap;
+
+    let gm = 0;
+    for (; gm < 12 && gd > g_days_in_month[gm]; ++gm) gd -= g_days_in_month[gm];
+    return [gy, gm + 1, gd];
   }
 
   private extractDataFromXml(xml: string): Employee | undefined {
@@ -112,6 +349,8 @@ export class RahkaranReporter {
 
   private extractDay(day: Element): Day {
     const date = day.getAttribute('PersianDate') ?? '';
+    const gregorianDate = this.persianToGregorianString(date);
+
     const name = day.getElementsByTagName('ForthGroupLevel')[0].getAttribute('DayName') ?? '';
     const special =
       day.getElementsByTagName('FifthGroupLevel')[0].getAttribute('SpecialDayTitle') ?? undefined;
@@ -141,7 +380,7 @@ export class RahkaranReporter {
     let overtime = 0;
     let absence = false;
 
-    const leave = // مرخصی
+    const leave =
       details.every((d) => d.statusLabel === Status.ESTEHGHAGHI) ||
       details.every((d) => d.statusLabel === Status.ESTELAGI);
 
@@ -160,6 +399,7 @@ export class RahkaranReporter {
 
     return {
       date,
+      gregorianDate,
       name,
       startStr,
       endStr,
@@ -186,7 +426,9 @@ export class RahkaranReporter {
     }
     const exit = this.timeToMinutes(exitStr);
 
-    const total = enter > 0 ? exit - (enter < start ? start : enter) : 0;
+    const _enter = this.REDUCE_ENTER_ON_URGENCY && enter < start ? start : enter;
+
+    const total = enter > 0 ? exit - _enter : 0;
 
     return {
       enterStr,
@@ -218,8 +460,8 @@ export class RahkaranReporter {
     const normalizeDigits = (str: string): string =>
       str
         .replace(/[\u200E\u200F\u202A-\u202E]|\s/g, '')
-        .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 1776)) // فارسی
-        .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 1632)); // عربی
+        .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 1776))
+        .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 1632));
 
     const normalized = normalizeDigits(time.trim());
     const [hoursStr, minutesStr] = normalized.split(':');

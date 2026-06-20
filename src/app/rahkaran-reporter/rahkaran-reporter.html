@@ -1,131 +1,352 @@
 @let emp = employee();
 @let _overtime = overtime();
 @let _error = error();
-@let overTimeCls = { 'text-red-700': _overtime < 0, 'text-green-700': _overtime >= 0 };
+@let overTimeCls = { 'text-rose-700 bg-rose-50': _overtime < 0, 'text-emerald-700 bg-emerald-50': _overtime >= 0 };
 
-<div class="p-4" dir="rtl">
-  <div class="flex gap-2 mb-4 justify-center">
+<div class="max-w-7xl mx-auto p-4 space-y-6 font-sans text-gray-800" dir="rtl">
+
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
     @if (emp) {
-      <div class="flex flex-row border p-2 border-gray-300 [&>div]:w-60 [&>div]:py-[.1rem] [&>div]:px-2">
-        <div class="flex justify-between">
-          <div>نام</div>
-          <div class="ltr">{{ emp.name }}</div>
+      <div class="flex flex-wrap items-center gap-y-4 divide-x-reverse divide-x divide-gray-200">
+        <div class="flex items-center gap-2 pl-6">
+          <span class="text-gray-500 text-sm">نام:</span>
+          <span class="font-semibold text-gray-900">{{ emp.name }}</span>
         </div>
-        <div class="flex justify-between border-r border-gray-300">
-          <div>کد پرسنلی</div>
-          <div class="ltr">{{ emp.code }}</div>
+        <div class="flex items-center gap-2 px-6">
+          <span class="text-gray-500 text-sm">کد پرسنلی:</span>
+          <span class="font-semibold text-gray-900" dir="ltr">{{ emp.code }}</span>
         </div>
-        <div class="flex justify-between border-r border-gray-300">
-          <div>غیبت (روز)</div>
-          <div [ngClass]="{'text-red-700': emp.absence > 0}">{{ emp.absence || 0 }}</div>
+        <div class="flex items-center gap-2 px-6">
+          <span class="text-gray-500 text-sm">غیبت (روز):</span>
+          <span class="font-semibold" [ngClass]="{'text-rose-600': emp.absence > 0, 'text-gray-900': emp.absence <= 0}">
+            {{ emp.absence || 0 }}
+          </span>
         </div>
-        <div class="flex justify-between border-r border-gray-300">
-          <div>اضافه کاری</div>
-          <div class="ltr" [ngClass]="overTimeCls">{{ overtime() | toHour: true }}</div>
+        <div class="flex items-center gap-2 pr-6">
+          <span class="text-gray-500 text-sm">اضافه کاری:</span>
+          <span class="font-bold px-2.5 py-1 rounded-md" dir="ltr" [ngClass]="overTimeCls">
+            {{ overtime() | toHour: true }}
+          </span>
         </div>
       </div>
+    } @else {
+      <div class="text-gray-500 text-sm">لطفاً فایل گزارش را انتخاب کنید</div>
     }
-    <button (click)="file.click()"
-            class="bg-teal-500 cursor-pointer px-3.5 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-teal-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-500">
-      انتخاب فایل
-    </button>
-    <input #file type="file" (change)="onFileInput($event)" accept=".xml" class="sr-only" />
+
+    <div>
+      <button (click)="file.click()"
+              class="bg-teal-500 hover:bg-teal-600 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 whitespace-nowrap">
+        انتخاب فایل
+      </button>
+      <input #file type="file" (change)="onFileInput($event)" accept=".xml" class="sr-only" />
+    </div>
   </div>
+
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+    <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 grow w-full">
+      <div class="flex items-center gap-2 text-gray-700 shrink-0">
+        <svg class="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M11.53 2c0 0-2.25 4.14-4.24 7.69l3.52 3.52c3.55-2 7.69-4.24 7.69-4.24zM2 11.53c0 0 4.14-2.25 7.69-4.24l3.52 3.52c-2 3.55-4.24 7.69-4.24 7.69z"/>
+        </svg>
+        <span class="font-bold text-sm">اتصال به جیرا (Jira):</span>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl">
+        <input #jiraUser type="text" placeholder="نام کاربری / ایمیل جیرا"
+               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 focus:bg-white transition-all"
+               [disabled]="isJiraLoading()"/>
+        <input #jiraPass type="password" placeholder="رمز عبور یا API Token"
+               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 focus:bg-white transition-all"
+               [disabled]="isJiraLoading()"/>
+      </div>
+    </div>
+    <button (click)="onFetchJiraWorkLog(jiraUser.value, jiraPass.value)"
+            [disabled]="isJiraLoading()"
+            class="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 whitespace-nowrap w-full lg:w-auto flex justify-center items-center gap-2">
+      @if (isJiraLoading()) {
+        <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+        در حال دریافت...
+      } @else {
+        دریافت اطلاعات WorkLog
+      }
+    </button>
+  </div>
+
   @if (_error) {
-    <div class="bg-red-100 border-t-4 border-red-500 rounded-b text-red-900 px-4 py-3 shadow-md w-150 mx-auto mb-5" role="alert">
-      <div class="flex w-full gap-4">
-        <div class="py-1">
-          <svg class="fill-current h-6 w-6 text-red-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+    <div class="w-full bg-rose-50 border-t-4 border-rose-500 rounded-b-xl shadow-sm p-6 mb-6" role="alert">
+      <div class="flex flex-col md:flex-row gap-4">
+        <div class="text-rose-600 shrink-0 mt-0.5">
+          <svg class="w-6 h-6" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
             <path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07zm12.73-1.41A8 8 0 1 0 4.34 4.34a8 8 0 0 0 11.32 11.32zM9 11V9h2v6H9v-4zm0-6h2v2H9V5z" />
           </svg>
         </div>
         <div class="flex flex-col grow">
-          <p class="font-bold mb-2">خطا در تحلیل گزارش</p>
-          <p class="text-sm mb-3">
-            متاسفانه خطایی در تحلیل فایل گزارش رخ داد. لطفا برای بررسی مشکل فایل خود را به توسعه دهنده ارسال کنید. با تشکر
+          <h3 class="text-rose-900 font-bold text-lg mb-2">خطا رخ داد</h3>
+          <p class="text-rose-800 text-sm mb-4 leading-relaxed">
+            {{ _error }}
           </p>
         </div>
-      </div>
-      <div class="overflowx-auto w-full ltr bg-red-200 p-3">
-        <pre class="overflow-x-auto">{{ _error }}</pre>
       </div>
     </div>
   }
+
   @if (emp) {
-    <table class="border-collapse w-full border border-gray-300">
-      <thead>
-      <tr class="bg-gray-100 border border-gray-300 [&>th]:p-2 [&>th]:border [&>th]:border-gray-300">
-        <th>تاریخ</th>
-        <th>روز</th>
-        <th>نوع</th>
-        <th>ورود</th>
-        <th>خروج</th>
-        <th colspan="2">مدت حضور</th>
-        <th>اضافه کاری</th>
-      </tr>
-      </thead>
-      <tbody>
-        @for (day of emp.days; track $index; let odd = $odd) {
-          @let span = day.details.length;
-          <tr class="{{ odd ? 'bg-gray-100' : '' }} text-center border border-gray-300 [&>td]:p-2 [&>td]:border [&>td]:border-gray-300"
-              [ngClass]="{'bg-red-50!' : day.special,'bg-red-100!' : day.absence}">
-            <td [rowSpan]="span">{{ day.date }}</td>
-            <td [rowSpan]="span">{{ day.name }}</td>
-            <td>{{ day.special ?? day.details[0].statusLabel }}</td>
-            <td>{{ day.details[0].enterStr }}</td>
-            <td><span [ngClass]="{'animate-pulse' : !day.details[0].out}">{{ day.details[0].exitStr }}</span></td>
-            @if (span > 1) {
-              <td><span [ngClass]="{'animate-pulse' : !day.details[0].out}">{{ day.details[0].total | toHour: day.details[0].reduced }}</span></td>
+
+    <div class="flex justify-center my-4">
+      <div class="bg-gray-100 p-1.5 rounded-xl inline-flex shadow-inner">
+        <button (click)="isChartMode = false"
+                [ngClass]="{'bg-white shadow-sm text-teal-600 font-bold': !isChartMode, 'text-gray-600 hover:text-gray-900': isChartMode}"
+                class="px-8 py-2 rounded-lg text-sm transition-all duration-200">
+          جدول تردد
+        </button>
+        <button (click)="isChartMode = true"
+                [ngClass]="{'bg-white shadow-sm text-teal-600 font-bold': isChartMode, 'text-gray-600 hover:text-gray-900': !isChartMode}"
+                class="px-8 py-2 rounded-lg text-sm transition-all duration-200">
+          نمودار گرافیکی
+        </button>
+      </div>
+    </div>
+
+    @if (isChartMode) {
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 overflow-hidden">
+        <h3 class="text-center font-semibold text-gray-700 mb-8">نمودار کارکرد روزانه و لاگ‌ورک جیرا</h3>
+
+        <div class="overflow-x-auto pb-4">
+          <div class="flex items-end gap-2 min-w-[1000px] h-72 border-b-2 border-gray-200 relative pt-10">
+
+            @for (day of emp.days; track $index) {
+              <div class="flex flex-col items-center flex-1 relative group h-full justify-end">
+
+                <div class="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-16 z-10 bg-gray-800 text-white text-xs py-2 px-3 rounded-md shadow-lg pointer-events-none line-clamp-4 min-w-[140px]">
+                  <div class="font-bold mb-1 border-b border-gray-600 pb-1 text-center">
+                    {{ day.name }} ({{ day.date }})
+                    <div class="text-[10px] text-gray-400 font-normal font-mono" dir="ltr">{{ day.gregorianDate }}</div>
+                  </div>
+                  <div dir="ltr" class="text-right mt-1">حضور: {{ day.absence ? 'غایب' : (day.total | toHour) }}</div>
+                  <div dir="ltr" class="text-right" [ngClass]="{'text-rose-400': day.overtime < 0, 'text-emerald-400': day.overtime >= 0}">
+                    اضافه کاری: {{ day.overtime | toHour: true }}
+                  </div>
+                  <div dir="ltr" class="text-right text-blue-300 font-semibold mt-0.5">
+                    لاگ جیرا: {{ day.jiraWorkLog ? (day.jiraWorkLog | toHour) : '۰۰:۰۰' }}
+                  </div>
+                </div>
+
+                <div class="flex items-end justify-center gap-1 w-full h-full">
+
+                  <div class="w-full max-w-[20px] rounded-t-sm transition-all duration-500 hover:opacity-80 cursor-pointer"
+                       [ngClass]="{
+                         'bg-gray-200': day.absence,
+                         'bg-rose-400': !day.absence && day.overtime < 0,
+                         'bg-emerald-500': !day.absence && day.overtime >= 0
+                       }"
+                       [style.height.%]="day.absence ? 5 : (day.total / 8)">
+                  </div>
+
+                  @if (day.jiraWorkLog) {
+                    <div (click)="openWorklogDetails(day)"
+                         title="مشاهده جزئیات تسک‌ها"
+                         class="w-full max-w-[20px] bg-blue-500 rounded-t-sm transition-all duration-500 hover:opacity-80 hover:bg-blue-400 cursor-pointer"
+                         [style.height.%]="(day.jiraWorkLog / 8)">
+                    </div>
+                  }
+                </div>
+
+                <div class="mt-3 flex flex-col items-center justify-center text-center">
+                  <span class="text-[10px] text-gray-400 whitespace-nowrap">{{ day.date }}</span>
+                  <span class="text-[9px] text-gray-400/80 font-mono whitespace-nowrap" dir="ltr">{{ day.gregorianDate }}</span>
+                  <span class="text-xs font-medium text-gray-700 mt-0.5">{{ day.name }}</span>
+                </div>
+
+              </div>
             }
-            <td [rowSpan]="span" [attr.colspan]="span > 1 ? 1 : 2">
-              @if (!day.absence) {
-                <span [ngClass]="{'animate-pulse' : !day.details[0].out}">
-                {{ day.total | toHour }}
-                </span>
-              }
-            </td>
-            <td [rowSpan]="span" class="ltr" [ngClass]="{'text-red-700' : day.overtime < 0, 'text-green-700' : day.overtime >= 0}">
-              @if (!day.absence) {
-                <span [ngClass]="{'animate-pulse' : !day.details[0].out}">
-                {{ day.overtime | toHour: true }}
-                </span>
-              }
-            </td>
-          </tr>
+          </div>
+        </div>
 
-          @let details = day.details.slice(1);
-
-          @for (detail of details; track $index) {
-            <tr
-              class="{{ odd ? 'bg-gray-100' : '' }} text-center border border-gray-300 [&>td]:p-2 [&>td]:border [&>td]:border-gray-300"
-            >
-              <td>{{ detail.statusLabel }}</td>
-              <td>{{ detail.enterStr }}</td>
-              <td><span [ngClass]="{'animate-pulse' : !detail.out}">{{ detail.exitStr }}</span></td>
-              <td><span [ngClass]="{'animate-pulse' : !detail.out}">{{ detail.total | toHour }}</span></td>
+        <div class="flex flex-wrap justify-center gap-6 mt-6 pt-4 border-t border-gray-100">
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-emerald-500"></span><span class="text-xs text-gray-600">حضور (اضافه‌کار مثبت)</span></div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-rose-400"></span><span class="text-xs text-gray-600">حضور (کسری کار)</span></div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-gray-200"></span><span class="text-xs text-gray-600">غیبت</span></div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-blue-500"></span><span class="text-xs text-gray-600">لاگ‌ورک جیرا</span></div>
+        </div>
+      </div>
+    } @else {
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-center whitespace-nowrap">
+            <thead class="bg-gray-50 border-b border-gray-200 text-gray-600 text-sm">
+            <tr>
+              <th class="py-4 px-4 font-semibold">تاریخ</th>
+              <th class="py-4 px-4 font-semibold">روز</th>
+              <th class="py-4 px-4 font-semibold">نوع</th>
+              <th class="py-4 px-4 font-semibold">ورود</th>
+              <th class="py-4 px-4 font-semibold">خروج</th>
+              <th colspan="2" class="py-4 px-4 font-semibold">مدت حضور</th>
+              <th class="py-4 px-4 font-semibold">اضافه کاری</th>
+              <th class="py-4 px-4 font-semibold bg-blue-50/70 text-blue-800 border-r border-gray-200">لاگ جیرا (Jira)</th>
             </tr>
-          }
-        }
+            </thead>
 
-      <tr class="text-center [&>td]:p-2 [&>td]:border [&>td]:border-gray-300">
-        <td colspan="7">مجموع</td>
-        <td class="ltr" [ngClass]="overTimeCls">{{ _overtime | toHour: true }}</td>
-      </tr>
-      </tbody>
-    </table>
+            <tbody class="text-sm text-gray-700">
+              @for (day of emp.days; track $index; let odd = $odd) {
+                @let span = day.details.length;
+
+                <tr class="border-b border-gray-100 transition-colors {{ odd ? 'bg-gray-50/50' : 'bg-white' }}"
+                    [ngClass]="{'bg-rose-50!' : day.special, 'bg-rose-100!' : day.absence}">
+                  <td class="py-3 px-4 border-l border-gray-100" [rowSpan]="span">
+                    <div class="flex flex-col items-center">
+                      <span>{{ day.date }}</span>
+                      <span class="text-[11px] text-gray-400 font-mono mt-0.5" dir="ltr">{{ day.gregorianDate }}</span>
+                    </div>
+                  </td>
+                  <td class="py-3 px-4 border-l border-gray-100" [rowSpan]="span">{{ day.name }}</td>
+                  <td class="py-3 px-4">
+                    <span class="inline-flex px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-600 border border-blue-100">
+                      {{ day.special ?? day.details[0].statusLabel }}
+                    </span>
+                  </td>
+                  <td class="py-3 px-4">{{ day.details[0].enterStr }}</td>
+                  <td class="py-3 px-4">
+                    <span [ngClass]="{'animate-pulse text-rose-500 font-bold' : !day.details[0].out}">{{ day.details[0].exitStr }}</span>
+                  </td>
+
+                  @if (span > 1) {
+                    <td class="py-3 px-4 border-l border-gray-100">
+                      <span [ngClass]="{'animate-pulse' : !day.details[0].out}">{{ day.details[0].total | toHour: day.details[0].reduced }}</span>
+                    </td>
+                  }
+
+                  <td class="py-3 px-4 border-l border-gray-100 font-medium" [rowSpan]="span" [attr.colspan]="span > 1 ? 1 : 2">
+                    @if (!day.absence) {
+                      <span [ngClass]="{'animate-pulse' : !day.details[0].out}">{{ day.total | toHour }}</span>
+                    }
+                  </td>
+                  <td class="py-3 px-4" [rowSpan]="span">
+                    @if (!day.absence) {
+                      <span class="px-2 py-1 rounded font-medium inline-block" dir="ltr"
+                            [ngClass]="{'text-rose-600 bg-rose-50' : day.overtime < 0, 'text-emerald-600 bg-emerald-50' : day.overtime >= 0, 'animate-pulse' : !day.details[0].out}">
+                        {{ day.overtime | toHour: true }}
+                      </span>
+                    }
+                  </td>
+                  <td class="py-3 px-4 border-r border-gray-100 font-semibold" [rowSpan]="span">
+                    @if (day.jiraWorkLog) {
+                      <button (click)="openWorklogDetails(day)"
+                              title="مشاهده جزئیات تسک‌ها"
+                              class="bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1 rounded border border-blue-200 inline-block transition-colors cursor-pointer shadow-sm" dir="ltr">
+                        {{ day.jiraWorkLog | toHour }}
+                      </button>
+                    } @else {
+                      <span class="text-gray-400">---</span>
+                    }
+                  </td>
+                </tr>
+
+                @let details = day.details.slice(1);
+                @for (detail of details; track $index) {
+                  <tr class="border-b border-gray-100 transition-colors {{ odd ? 'bg-gray-50/50' : 'bg-white' }}">
+                    <td class="py-3 px-4">
+                      <span class="inline-flex px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-600">
+                        {{ detail.statusLabel }}
+                      </span>
+                    </td>
+                    <td class="py-3 px-4">{{ detail.enterStr }}</td>
+                    <td class="py-3 px-4">
+                      <span [ngClass]="{'animate-pulse text-rose-500 font-bold' : !detail.out}">{{ detail.exitStr }}</span>
+                    </td>
+                    <td class="py-3 px-4 border-l border-gray-100">
+                      <span [ngClass]="{'animate-pulse' : !detail.out}">{{ detail.total | toHour }}</span>
+                    </td>
+                  </tr>
+                }
+              }
+            </tbody>
+
+            <tfoot class="bg-gray-50 border-t-2 border-gray-200">
+            <tr>
+              <td colspan="7" class="py-4 px-6 text-left font-bold text-gray-800">مجموع</td>
+              <td class="py-4 px-4 font-bold" dir="ltr">
+                  <span class="px-3 py-1.5 rounded-md" [ngClass]="overTimeCls">
+                    {{ _overtime | toHour: true }}
+                  </span>
+              </td>
+              <td class="py-4 px-4 font-bold bg-blue-50 text-blue-800 border-r border-gray-200" dir="ltr">
+                @if (totalJiraWorkLog()) {
+                  {{ totalJiraWorkLog() | toHour }}
+                } @else {
+                  ---
+                }
+              </td>
+            </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    }
+
   } @else {
-    <div class="bg-teal-100 border-t-4 border-teal-500 rounded-b text-teal-900 px-4 py-3 shadow-md w-150 mx-auto" role="alert">
-      <div class="flex">
-        <div class="py-1">
-          <svg class="fill-current h-6 w-6 text-teal-500 ml-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-            <path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07zm12.73-1.41A8 8 0 1 0 4.34 4.34a8 8 0 0 0 11.32 11.32zM9 11V9h2v6H9v-4zm0-6h2v2H9V5z" />
+    <div class="w-full bg-[#e6fff9] border-t-4 border-teal-500 rounded-b-xl shadow-sm p-6 mx-auto mt-8">
+      <div class="flex items-start gap-3">
+        <div class="text-teal-600 shrink-0 mt-0.5">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
           </svg>
         </div>
         <div>
-          <p class="font-bold mb-2">انتخاب فایل گزارش</p>
-          <p class="text-sm">
-            برای مشاهده گزارش، ابتدا وارد سامانه راهکاران شوید. سپس به بخش «وضعیت تردد» مراجعه کرده و با انتخاب بازه زمانی موردنظر، گزارش را دریافت کنید. در ادامه، خروجی <strong><u>XML</u></strong> را از سامانه دریافت کرده و از طریق دکمه بالا، فایل مربوطه را انتخاب نمایید.
+          <h3 class="text-teal-900 font-bold text-lg mb-2">انتخاب فایل گزارش</h3>
+          <p class="text-teal-800 leading-relaxed text-sm md:text-base text-justify">
+            برای مشاهده گزارش، ابتدا وارد سامانه راهکاران شوید. سپس به بخش «وضعیت تردد» مراجعه کرده و با انتخاب بازه زمانی موردنظر، گزارش را دریافت کنید. در ادامه، خروجی <span class="font-bold underline decoration-teal-400 underline-offset-4">XML</span> را از سامانه دریافت کرده و از طریق دکمه بالا، فایل مربوطه را انتخاب نمایید.
           </p>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (selectedDayLogs()) {
+    @let logData = selectedDayLogs()!;
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm" dir="rtl">
+      <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div class="flex justify-between items-center p-5 border-b border-gray-100 bg-gray-50/50">
+          <div class="flex items-center gap-2 text-blue-700">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+            <h3 class="font-bold text-lg">جزئیات لاگ‌ورک - {{ logData.date }} <span class="text-sm text-gray-500 font-mono ml-2 font-normal" dir="ltr">({{ logData.gregorianDate }})</span></h3>
+          </div>
+          <button (click)="closeWorklogDetails()" class="text-gray-400 hover:bg-gray-200 hover:text-rose-500 rounded-lg p-1.5 transition-colors focus:outline-none">
+            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
+
+        <div class="p-5 max-h-[60vh] overflow-y-auto">
+          @if (logData.logs.length > 0) {
+            <div class="space-y-3">
+              @for (log of logData.logs; track $index) {
+                <a [href]="'https://jira-neo.hooshmandsepehrco.com/browse/' + log.issueKey"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   title="مشاهده تسک در جیرا"
+                   class="flex justify-between items-center p-3 rounded-xl border border-gray-100 bg-white hover:border-blue-300 hover:bg-blue-50/40 hover:shadow-md transition-all group cursor-pointer block">
+
+                  <div class="flex flex-col gap-1.5 grow pr-2">
+                    <span class="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md w-fit font-mono tracking-wider flex items-center gap-1 group-hover:bg-blue-100 transition-colors" dir="ltr">
+                      {{ log.issueKey }}
+                      <svg class="w-3 h-3 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                      </svg>
+                    </span>
+                    <span class="text-sm text-gray-700 font-medium line-clamp-2 leading-relaxed group-hover:text-blue-900 transition-colors">{{ log.summary }}</span>
+                  </div>
+
+                  <div class="bg-gray-100 border border-gray-200 px-3 py-1.5 rounded-lg text-sm font-bold text-gray-800 font-mono shrink-0 shadow-sm group-hover:bg-white group-hover:border-blue-200 transition-colors" dir="ltr">
+                    {{ log.minutes | toHour }}
+                  </div>
+
+                </a>
+              }
+            </div>
+          } @else {
+            <div class="flex flex-col items-center justify-center py-8 text-gray-400">
+              <svg class="w-12 h-12 mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+              <p class="text-sm">لاگ‌ورکی برای این روز یافت نشد.</p>
+            </div>
+          }
         </div>
       </div>
     </div>
