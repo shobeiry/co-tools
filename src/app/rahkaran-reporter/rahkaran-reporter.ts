@@ -18,6 +18,7 @@ export type JiraLogDetail = {
   issueKey: string;
   summary: string;
   minutes: number;
+  comment: string;
 };
 
 type Detail = {
@@ -264,10 +265,15 @@ export class RahkaranReporter implements OnInit {
                   const dateStr = wl.started.substring(0, 10);
                   const minutes = Math.floor(wl.timeSpentSeconds / 60);
 
+                  const comment =
+                    typeof wl.comment === 'string' && wl.comment.trim() !== ''
+                      ? wl.comment.trim()
+                      : 'بدون توضیحات';
+
                   if (!dailyLogsMap.has(dateStr)) {
                     dailyLogsMap.set(dateStr, []);
                   }
-                  dailyLogsMap.get(dateStr)!.push({ issueKey, summary, minutes });
+                  dailyLogsMap.get(dateStr)!.push({ issueKey, summary, minutes, comment });
                 }
               });
             }
